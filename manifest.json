@@ -1,0 +1,18 @@
+{
+  "short_name": "ศอญ.ปืนใหญ่",
+  "name": "Artillery Fire Direction Center",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2591/2591457.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#121212",
+  "display": "standalone",
+  "scope": "./",
+  "theme_color": "#1b5e20",
+  "description": "โปรแกรมคำนวณแก้การยิงปืนใหญ่และบันทึกประวัติ"
+}
