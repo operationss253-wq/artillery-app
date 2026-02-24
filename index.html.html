@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ARTILLERY FDC Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        :root { 
+            --primary: #2e7d32; --dark: #1b5e20; --bg: #121212; 
+            --panel: #263238; --text: #ffffff; --input: #37474f;
+        }
+
+        /* Night Mode Style */
+        body.night-mode { 
+            --primary: #b71c1c; --dark: #7f0000; --bg: #000000; 
+            --panel: #1a0000; --text: #ff5252; --input: #2a0000;
+        }
+        body.night-mode #map { filter: brightness(0.6) sepia(1) hue-rotate(-50deg) saturate(2); }
+
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; transition: 0.3s; }
+        
+        .status-bar { padding: 8px 15px; background: var(--primary); font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; align-items: center; z-index: 1001; }
+
+        .main-container { display: flex; flex: 1; overflow: hidden; flex-direction: row; }
+        #map { flex: 1.2; height: 100%; border-right: 3px solid var(--dark); }
+
+        /* Side Panel */
+        .side-panel { flex: 0.8; background: var(--panel); display: flex; flex-direction: column; overflow-y: auto; padding: 15px; box-shadow: -5px 0 15px rgba(0,0,0,0.3); }
+        
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            #map { flex: 1; border-right: none; border-bottom: 3px solid var(--dark); }
+            .side-panel { flex: 1.5; }
+        }
+
+        .coord-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px; }
+        .input-latlon { width: 100%; background: var(--input); border: 1px solid #455a64; color: var(--text); padding: 8px 2px; border-radius: 4px; text-align: center; outline: none; }
+        .btn-update { background: #546e7a; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; }
+
+        .btn-group { display: flex; gap: 5px; margin-bottom: 10px; }
+        button.mode-btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; background: #455a64; color: white; font-size: 12px; }
+        .active-A { background: #1976d2 !important; box-shadow: 0 0 8px #1976d2; }
+        .active-B { background: #d32f2f !important; box-shadow: 0 0 8px #d32f2f; }
+        .active-I { background: #ffa000 !important; color: black !important; box-shadow: 0 0 8px #ffa000; }
+        
+        .action-group { display: flex; gap: 8px; margin-bottom: 15px; }
+        .btn-fire { flex: 2; background: var(--primary); color: white; font-size: 16px; padding: 12px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; }
+        .btn-save-img { flex: 1; background: #546e7a; color: white; font-size: 13px; border-radius: 8px; font-weight: bold; display: none; border: none; cursor: pointer; }
+
+        #result-section { padding: 15px; border-radius: 10px; background: white; color: #333; margin-top: 5px; border-left: 6px solid var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .res-head { border-bottom: 2px solid #eee; margin-bottom: 10px; font-weight: bold; font-size: 16px; color: var(--dark); }
+        .res-val { font-size: 20px; font-weight: 900; color: #c62828; text-align: center; line-height: 1.3; }
+        
+        .history-table { width: 100%; margin-top: 10px; font-size: 10px; border-collapse: collapse; }
+        .history-table th, .history-table td { border: 1px solid #cfd8dc; padding: 6px; text-align: center; }
+        .history-table th { background: #f5f5f5; }
+
+        .btn-night { background: rgba(0,0,0,0.3); border: 1px solid white; color: white; padding: 5px 12px; border-radius: 15px; font-size: 11px; cursor: pointer; }
+        .btn-clear { background: #e57373; color: white; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="status-bar">
+    <span id="status">📍 โหมด: ปืน (A)</span>
+    <button class="btn-night" onclick="toggleNightMode()">🌙 โหมดกลางคืน</button>
+</div>
+
+<div class="main-container">
+    <div id="map"></div>
+
+    <div class="side-panel">
+        <table class="coord-table">
+            <tr>
+                <td style="color:#64b5f6; font-weight:bold;">ที่ตั้งปืน</td>
+                <td><input type="number" id="latA" class="input-latlon" step="any" placeholder="Lat"></td>
+                <td><input type="number" id="lonA" class="input-latlon" step="any" placeholder="Lon"></td>
+                <td><button class="btn-update" onclick="manualUpdate('A')">📍</button></td>
+            </tr>
+            <tr>
+                <td style="color:#ef5350; font-weight:bold;">ที่ตั้งเป้าหมาย</td>
+                <td><input type="number" id="latB" class="input-latlon" step="any"></td>
+                <td><input type="number" id="lonB" class="input-latlon" step="any"></td>
+                <td><button class="btn-update" onclick="manualUpdate('B')">🎯</button></td>
+            </tr>
+            <tr>
+                <td style="color:#ffb74d; font-weight:bold;">จุดกระสุนตก</td>
+                <td><input type="number" id="latI" class="input-latlon" step="any"></td>
+                <td><input type="number" id="lonI" class="input-latlon" step="any"></td>
+                <td><button class="btn-update" onclick="manualUpdate('I')">💥</button></td>
+            </tr>
+        </table>
+
+        <div class="btn-group">
+            <button id="btnA" class="mode-btn active-A" onclick="setMode('A')">ที่ตั้งปืน</button>
+            <button id="btnB" class="mode-btn" onclick="setMode('B')">เป้าหมาย</button>
+            <button id="btnI" class="mode-btn" onclick="setMode('I')">จุดกระสุนตก</button>
+        </div>
+        
+        <div class="action-group">
+            <button class="btn-fire" onclick="calculateFire()">🚀 คำนวณการยิง</button>
+            <button id="btnSaveReport" class="btn-save-img" onclick="saveAsImage()">📸 บันทึกภาพ</button>
+        </div>
+
+        <div id="result-section">
+            <div class="res-head">🎯 รายงานแก้การยิง</div>
+            <div id="resInfo" style="text-align: center; font-size: 13px; margin-bottom: 8px;"></div>
+            <div id="resCorr" class="res-val"></div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
+                <span style="font-size:12px; font-weight:bold;">📜 ประวัติการยิง</span>
+                <button class="btn-clear" onclick="clearHistory()">🗑️ ล้าง</button>
+            </div>
+            
+            <table class="history-table" id="hist">
+                <thead>
+                    <tr>
+                        <th>นัด</th>
+                        <th>ระยะ(ม.)</th>
+                        <th>มุมทิศ</th>
+                        <th>แก้ข้าง</th>
+                        <th>แก้ระยะ</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let map, markers = {}, mode = 'A', shotCount = 0, coords = { A: null, B: null, I: null };
+
+    // Initialize Map
+    map = L.map('map', { zoomControl: false }).setView([13.6608, 100.3054], 16);
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+    L.control.layers({ "แผนที่": osm, "ดาวเทียม": sat }, null, { position: 'topright' }).addTo(map);
+
+    function toggleNightMode() {
+        document.body.classList.toggle('night-mode');
+        const isNight = document.body.classList.contains('night-mode');
+        document.querySelector('.btn-night').innerText = isNight ? "☀️ โหมดปกติ" : "🌙 โหมดกลางคืน";
+    }
+
+    function clearHistory() {
+        if(confirm("ต้องการล้างประวัติการยิงทั้งหมดหรือไม่?")) {
+            shotCount = 0;
+            document.querySelector("#hist tbody").innerHTML = "";
+            document.getElementById('result-section').style.display = 'none';
+            document.getElementById('btnSaveReport').style.display = 'none';
+        }
+    }
+
+    function setMode(m) {
+        mode = m;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active-A', 'active-B', 'active-I'));
+        document.getElementById('btn' + m).classList.add('active-' + m);
+        document.getElementById('status').innerText = `📍 โหมด: จุด ${m}`;
+    }
+
+    function updateMarker(lat, lng, type, moveMap = true) {
+        const latlng = L.latLng(lat, lng);
+        if (markers[type]) map.removeLayer(markers[type]);
+        const color = { A: '#1976d2', B: '#d32f2f', I: '#ffa000' };
+        markers[type] = L.circleMarker(latlng, { radius: 9, fillColor: color[type], color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map);
+        coords[type] = latlng;
+        
+        document.getElementById('lat' + type).value = lat.toFixed(6);
+        document.getElementById('lon' + type).value = lng.toFixed(6);
+        if(moveMap) map.panTo(latlng);
+    }
+
+    map.on('click', e => updateMarker(e.latlng.lat, e.latlng.lng, mode, false));
+
+    function manualUpdate(type) {
+        const lat = parseFloat(document.getElementById('lat' + type).value);
+        const lon = parseFloat(document.getElementById('lon' + type).value);
+        if (!isNaN(lat) && !isNaN(lon)) {
+            updateMarker(lat, lon, type, true);
+        } else {
+            alert("กรุณากรอกพิกัดให้ถูกต้อง");
+        }
+    }
+
+   function calculateFire() {
+        if (!coords.A || !coords.B || !coords.I) return alert("ระบุพิกัดไม่ครบทั้ง 3 จุด!");
+        
+        const toRad = d => d * Math.PI / 180;
+        const getStats = (p1, p2) => {
+            const dLat = toRad(p2.lat - p1.lat), dLon = toRad(p2.lng - p1.lng);
+            const a = Math.sin(dLat/2)**2 + Math.cos(toRad(p1.lat))*Math.cos(toRad(p2.lat))*Math.sin(dLon/2)**2;
+            const dist = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const y = Math.sin(dLon) * Math.cos(toRad(p2.lat));
+            const x = Math.cos(toRad(p1.lat))*Math.sin(toRad(p2.lat)) - Math.sin(toRad(p1.lat))*Math.cos(toRad(p2.lat))*Math.cos(dLon);
+            const azi = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+            return { dist, azi };
+        };
+
+        const gt = getStats(coords.A, coords.B);
+        const gi = getStats(coords.A, coords.I);
+        
+        const aziDeg = gt.azi.toFixed(1);
+        const aziMils = (gt.azi * 17.7777777778).toFixed(0);
+        
+        const diffRad = toRad(gi.azi - gt.azi);
+        const latM = gi.dist * Math.sin(diffRad);
+        const rngM = gt.dist - (gi.dist * Math.cos(diffRad));
+        const latMils = ((latM / gt.dist) * 1000).toFixed(0);
+
+        document.getElementById('result-section').style.display = 'block';
+        document.getElementById('btnSaveReport').style.display = 'block';
+        
+        document.getElementById('resInfo').innerHTML = `
+            <b>ระยะเป้าหมาย:</b> ${gt.dist.toFixed(0)} ม.<br>
+            <b>มุมทิศ:</b> ${aziMils} มิลเลียม (${aziDeg}° องศา)
+        `;
+        
+        // กำหนดสีและข้อความสำหรับการแก้ข้าง
+        const latDir = latM < 0 ? "ขวา " : "ซ้าย ";
+        const latColor = latM < 0 ? "#2e7d32" : "#c62828"; // ขวา(เพิ่มทิศ)=เขียว, ซ้าย(ลดทิศ)=แดง
+        const latTxt = `${latDir} ${Math.abs(latM).toFixed(1)} ม. (${Math.abs(latMils)} มิลเลียม)`;
+
+        // กำหนดสีและข้อความสำหรับการแก้ระยะ
+        const rngDir = rngM > 0 ? "เพิ่ม " : "ลด ";
+        const rngColor = rngM > 0 ? "#2e7d32" : "#c62828"; // เพิ่ม=เขียว, ลด=แดง
+        const rngTxt = `${rngDir} ${Math.abs(rngM).toFixed(1)} ม.`;
+
+        // แสดงผลในหน้าจอรายงานหลัก
+        document.getElementById('resCorr').innerHTML = `
+            <div style="color: ${latColor}">${latTxt}</div>
+            <div style="color: ${rngColor}">${rngTxt}</div>
+        `;
+
+        shotCount++;
+        const row = document.querySelector("#hist tbody").insertRow(0);
+        // แสดงผลในตารางประวัติ (ใช้สีตามเงื่อนไขเดียวกัน)
+        row.innerHTML = `
+            <td>${shotCount}</td>
+            <td>${gt.dist.toFixed(0)}</td>
+            <td>${aziMils} (${aziDeg}°)</td>
+            <td style="color: ${latColor}; font-weight: bold;">${latTxt}</td>
+            <td style="color: ${rngColor}; font-weight: bold;">${rngTxt}</td>
+        `;
+    }
+
+    function saveAsImage() {
+        const target = document.getElementById('result-section');
+        html2canvas(target).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `Shot_Report_${shotCount}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    }
+</script>
+</body>
+</html>
